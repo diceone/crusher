@@ -1,0 +1,42 @@
+name: Make Package Public
+
+on:
+  workflow_run:
+    workflows: ["Build and Publish Docker Image"]
+    types:
+      - completed
+
+jobs:
+  make-public:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Make package public
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // Get the package ID
+            const packages = await github.rest.packages.listPackagesForAuthenticatedUser({
+              package_type: 'container'
+            });
+            
+            const pkg = packages.data.find(p => p.name === repo);
+            
+            if (pkg) {
+              console.log(`Found package: ${pkg.name} with ID: ${pkg.id}`);
+              
+              // Make the package public
+              await github.rest.packages.setPackageVisibilityForAuthenticatedUser({
+                package_type: 'container',
+                package_name: repo,
+                visibility: 'public'
+              });
+              
+              console.log(`Made package ${repo} public`);
+            } else {
+              console.log(`Package ${repo} not found`);
+            }
